@@ -1,7 +1,7 @@
 // URL 안전성 검사 함수
 async function checkUrlSafety(url) {
-    const API_KEY = "";
-    const BASE_API_URL = "";
+    const API_KEY = window.ENV?.API_KEY || "";
+    const BASE_API_URL = window.ENV?.API_URL || "https://api.lrl.kr/v5/url/check";
     const encodedUrl = encodeURIComponent(url);
     const apiUrl = `${BASE_API_URL}?key=${API_KEY}&url=${encodedUrl}`;
 
@@ -35,56 +35,124 @@ const qrScanner = {
     ctx: null,
     scanning: false,
     mediaStream: null,
+    lastResult: null, // 마지막 스캔 결과 저장
+    lastScanTime: 0,  // 마지막 스캔 시간 저장
 
     async init() {
-        this.video = document.getElementById('qr-video');
-        this.canvas = document.getElementById('qr-canvas');
-        this.ctx = this.canvas.getContext('2d');
-
         try {
+            this.video = document.getElementById('qr-video');
+            this.canvas = document.getElementById('qr-canvas');
+
+            if (!this.video || !this.canvas) {
+                console.error('필요한 DOM 요소를 찾을 수 없습니다.');
+                return;
+            }
+
+            this.ctx = this.canvas.getContext('2d');
+
+            // 이전 스트림이 있다면 정리
+            if (this.mediaStream) {
+                this.mediaStream.getTracks().forEach(track => track.stop());
+            }
+
+            // 카메라 권한 요청 및 스트림 획득
             this.mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment" }
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
             });
 
-            this.video.srcObject = this.mediaStream;
-            this.video.setAttribute('playsinline', true);
-            await this.video.play();
+            if (this.video) {
+                this.video.srcObject = this.mediaStream;
+                this.video.setAttribute('playsinline', true);
 
-            this.canvas.width = this.video.videoWidth;
-            this.canvas.height = this.video.videoHeight;
+                await this.video.play();
 
-            this.scanning = true;
-            this.scan();
+                await new Promise((resolve) => {
+                    this.video.onloadedmetadata = () => {
+                        this.canvas.width = this.video.videoWidth;
+                        this.canvas.height = this.video.videoHeight;
+                        resolve();
+                    };
+                });
+
+                this.scanning = true;
+                this.scan();
+            }
         } catch (error) {
             console.error('카메라 접근 오류:', error);
-            document.getElementById('qr-reader').innerHTML = `
+            this.handleCameraError(error);
+        }
+    },
+
+    handleCameraError(error) {
+        const errorElement = document.getElementById('qr-reader');
+        if (errorElement) {
+            let errorMessage = '카메라 접근에 실패했습니다. ';
+
+            switch (error.name) {
+                case 'NotAllowedError':
+                    errorMessage += '카메라 권한을 허용해주세요.';
+                    break;
+                case 'NotFoundError':
+                    errorMessage += '사용 가능한 카메라를 찾을 수 없습니다.';
+                    break;
+                case 'AbortError':
+                    errorMessage += '카메라 초기화가 중단되었습니다. 페이지를 새로고침해주세요.';
+                    break;
+                default:
+                    errorMessage += '다시 시도해주세요.';
+            }
+
+            errorElement.innerHTML = `
                 <div style="padding: 2rem; text-align: center; color: var(--error);">
-                    카메라 접근이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.
+                    <p>${errorMessage}</p>
+                    <button onclick="retryCamera()" 
+                            style="margin-top: 1rem; padding: 0.5rem 1rem; 
+                                   background: var(--primary); color: white; 
+                                   border: none; border-radius: 0.5rem; 
+                                   cursor: pointer;">
+                        다시 시도
+                    </button>
                 </div>
             `;
         }
     },
-
     scan() {
-        if (!this.scanning) return;
+        if (!this.scanning || !this.video || !this.canvas || !this.ctx) return;
 
-        if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
-            this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
-            const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        try {
+            if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
+                this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+                const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
-            try {
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                try {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-                if (code) {
-                    this.handleSuccess(code.data);
-                    return;
+                    if (code) {
+                        const currentTime = Date.now();
+                        // 동일한 QR 코드는 3초 간격으로만 처리
+                        if (this.lastResult !== code.data || currentTime - this.lastScanTime > 3000) {
+                            this.lastResult = code.data;
+                            this.lastScanTime = currentTime;
+                            this.handleSuccess(code.data);
+                        }
+                    }
+                } catch (e) {
+                    console.error('QR 코드 스캔 오류:', e);
                 }
-            } catch (e) {
-                console.error('QR 코드 스캔 오류:', e);
+            }
+
+            // 스캔 계속 진행
+            requestAnimationFrame(() => this.scan());
+        } catch (error) {
+            console.error('스캔 중 오류:', error);
+            if (this.scanning) {
+                requestAnimationFrame(() => this.scan());
             }
         }
-
-        requestAnimationFrame(() => this.scan());
     },
 
     async handleSuccess(decodedText) {
@@ -131,6 +199,7 @@ const qrScanner = {
                 resultClass = 'result-danger';
                 icon = '⚠️';
                 title = '위험 감지';
+                description = `위험 유형: ${safetyResult.threatType}`;
                 tips = [
                     '이 URL은 위험한 것으로 확인되었습니다',
                     '접속하지 않는 것을 강력히 권장합니다',
@@ -174,6 +243,8 @@ const qrScanner = {
                 </div>
             `;
 
+            // 스캐닝 계속 유지
+            this.scanning = true;
         } catch (error) {
             modalContent.innerHTML = `
                 <div class="modal-warning">
@@ -196,21 +267,11 @@ const qrScanner = {
                     </div>
                 </div>
             `;
-        }
 
-        this.scanning = false;
-        if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach(track => track.stop());
-        }
-    },
-
-    restart() {
-        if (!this.scanning) {
+            // 에러 발생해도 스캐닝 유지
             this.scanning = true;
-            this.init();
         }
     },
-
     async processQRFromFile(file) {
         return new Promise((resolve, reject) => {
             if (typeof jsQR === 'undefined') {
@@ -276,40 +337,16 @@ const qrScanner = {
         });
     },
 
-    async displayFileUploadResult(result, error = null) {
-        if (error) {
-            this.handleError(error.message);
-            return;
+    cleanup() {
+        this.scanning = false;
+        if (this.mediaStream) {
+            this.mediaStream.getTracks().forEach(track => track.stop());
         }
-        await this.handleSuccess(result);
-    },
-
-    handleError(errorMessage) {
-        const modal = document.getElementById('resultModal');
-        const modalContent = modal.querySelector('.modal-content');
-
-        modalContent.innerHTML = `
-            <div class="modal-warning">
-                <div class="modal-icon">!</div>
-                <h2 class="modal-title">오류 발생</h2>
-                <p class="modal-description">${errorMessage}</p>
-                <div class="modal-tips">
-                    <h4>💡 문제 해결 팁</h4>
-                    <ul>
-                        <li>이미지가 선명한지 확인해주세요</li>
-                        <li>QR 코드가 이미지 안에 완전히 포함되어 있는지 확인해주세요</li>
-                        <li>다른 이미지로 다시 시도해보세요</li>
-                    </ul>
-                </div>
-                <div class="modal-actions">
-                    <button onclick="retryScanning()" class="action-btn retry-btn">
-                        다시 시도
-                    </button>
-                </div>
-            </div>
-        `;
-
-        modal.classList.add('show');
+        if (this.video) {
+            this.video.srcObject = null;
+        }
+        this.lastResult = null;
+        this.lastScanTime = 0;
     },
 
     initFileUpload() {
@@ -327,9 +364,9 @@ const qrScanner = {
             if (file) {
                 try {
                     const result = await this.processQRFromFile(file);
-                    await this.displayFileUploadResult(result);
+                    await this.handleSuccess(result);
                 } catch (error) {
-                    this.displayFileUploadResult(null, error);
+                    this.handleError(error.message);
                 }
             }
         });
@@ -351,9 +388,9 @@ const qrScanner = {
             if (file) {
                 try {
                     const result = await this.processQRFromFile(file);
-                    await this.displayFileUploadResult(result);
+                    await this.handleSuccess(result);
                 } catch (error) {
-                    this.displayFileUploadResult(null, error);
+                    this.handleError(error.message);
                 }
             }
         });
@@ -364,7 +401,8 @@ const qrScanner = {
 function closeModal() {
     const modal = document.getElementById('resultModal');
     modal.classList.remove('show');
-    qrScanner.restart();
+    // 모달을 닫아도 스캐너는 계속 작동
+    qrScanner.scanning = true;
 }
 
 function toggleDetails() {
@@ -393,6 +431,11 @@ async function copyToClipboard(text) {
 function retryScanning() {
     closeModal();
     qrScanner.restart();
+}
+
+function retryCamera() {
+    qrScanner.cleanup();
+    qrScanner.init();
 }
 
 // 이벤트 리스너들
@@ -433,9 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fileUploadRegion.style.display = 'block';
                 cameraInstructions.style.display = 'none';
                 uploadInstructions.style.display = 'block';
-                if (qrScanner.mediaStream) {
-                    qrScanner.mediaStream.getTracks().forEach(track => track.stop());
-                }
+                qrScanner.cleanup();
             }
         }
 
@@ -448,21 +489,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 파일 업로드 기능 초기화
         qrScanner.initFileUpload();
-
-        // 링크 스크롤 애니메이션
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const targetId = this.getAttribute('href').substring(1);
-                const targetElement = document.getElementById(targetId);
-
-                if (targetElement) {
-                    targetElement.scrollIntoView({
-                        behavior: 'smooth'
-                    });
-                }
-            });
-        });
     }
 
     // Scanner 초기화 시작
@@ -481,262 +507,4 @@ document.querySelector('.modal-overlay')?.addEventListener('click', (e) => {
     if (e.target.classList.contains('modal-overlay')) {
         closeModal();
     }
-});
-
-// 추가 스타일 삽입
-const additionalStyles = `
-.loading-spinner {
-    width: 50px;
-    height: 50px;
-    border: 5px solid var(--gray-200);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 1rem;
-}
-
-.modal-loading {
-    text-align: center;
-    padding: 2rem;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.modal-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1.5rem;
-    justify-content: center;
-}
-
-.action-btn {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-.visit-btn {
-    background: var(--success);
-    color: white;
-}
-
-.visit-btn:hover {
-    background: var(--success-dark);
-}
-
-.close-btn {
-    background: var(--error);
-    color: white;
-}
-
-.close-btn:hover {
-    background: var(--error-dark);
-}
-
-.retry-btn {
-    background: var(--primary);
-    color: white;
-}
-
-.retry-btn:hover {
-    background: var(--primary-dark);
-}
-
-.copy-btn {
-    padding: 0.25rem 0.75rem;
-    background: var(--gray-100);
-    border: none;
-    border-radius: 0.25rem;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: all 0.2s ease;
-}
-
-.copy-btn:hover {
-    background: var(--gray-200);
-}
-
-.modal-url {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    margin: 1rem 0;
-    word-break: break-all;
-    font-family: monospace;
-}
-
-.url-text {
-    flex: 1;
-}
-
-.result-safe {
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-}
-
-.result-danger {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.details-toggle {
-    margin-top: 1rem;
-    padding: 0.5rem 1rem;
-    background: var(--gray-100);
-    border: none;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    color: var(--gray-600);
-    transition: all 0.2s ease;
-}
-
-.details-toggle:hover {
-    background: var(--gray-200);
-}
-
-.details-content {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: var(--gray-50);
-    border-radius: 0.5rem;
-    font-family: monospace;
-    font-size: 0.9rem;
-    overflow-x: auto;
-}
-
-.details-content pre {
-    margin: 0;
-    white-space: pre-wrap;
-}
-
-@media (max-width: 768px) {
-    .modal-container {
-        width: 95%;
-        margin: 1rem;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-
-    .modal-actions {
-        flex-direction: column;
-    }
-
-    .action-btn {
-        width: 100%;
-    }
-}
-`;
-
-// 스타일 추가
-const styleSheet = document.createElement('style');
-styleSheet.textContent = additionalStyles;
-document.head.appendChild(styleSheet);
-
-// FAQ 아코디언
-document.querySelectorAll('.faq-question').forEach(button => {
-    button.addEventListener('click', () => {
-        const faqItem = button.parentElement;
-        const isActive = faqItem.classList.contains('active');
-
-        document.querySelectorAll('.faq-item').forEach(item => {
-            item.classList.remove('active');
-        });
-
-        if (!isActive) {
-            faqItem.classList.add('active');
-        }
-    });
-});
-
-// 스크롤 이벤트
-window.addEventListener('scroll', () => {
-    const nav = document.querySelector('.nav');
-    if (window.scrollY > 10) {
-        nav.classList.add('nav-scrolled');
-    } else {
-        nav.classList.remove('nav-scrolled');
-    }
-});
-
-// 페이지 로드 시 초기화
-document.addEventListener('DOMContentLoaded', () => {
-    // 라이브러리 로드 확인 및 재시도
-    function initializeScanner() {
-        if (typeof jsQR === 'undefined') {
-            console.log('jsQR 라이브러리 로드 중...');
-            // 1초 후 재시도
-            setTimeout(initializeScanner, 1000);
-            return;
-        }
-
-        console.log('jsQR 라이브러리 로드 완료');
-
-        // QR 스캐너 초기화
-        qrScanner.init();
-
-        // 스캔 방식 전환 로직
-        const methodButtons = document.querySelectorAll('.scan-method-btn');
-        const scanRegion = document.getElementById('scan-region');
-        const fileUploadRegion = document.getElementById('file-upload-region');
-        const cameraInstructions = document.getElementById('camera-instructions');
-        const uploadInstructions = document.getElementById('upload-instructions');
-
-        // 스캔 방식 전환 함수
-        function switchMethod(method) {
-            methodButtons.forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.method === method);
-            });
-
-            if (method === 'camera') {
-                scanRegion.style.display = 'block';
-                fileUploadRegion.style.display = 'none';
-                cameraInstructions.style.display = 'block';
-                uploadInstructions.style.display = 'none';
-                qrScanner.init();
-            } else {
-                scanRegion.style.display = 'none';
-                fileUploadRegion.style.display = 'block';
-                cameraInstructions.style.display = 'none';
-                uploadInstructions.style.display = 'block';
-                if (qrScanner.mediaStream) {
-                    qrScanner.mediaStream.getTracks().forEach(track => track.stop());
-                }
-            }
-        }
-
-        // 방식 전환 버튼 이벤트 리스너
-        methodButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                switchMethod(btn.dataset.method);
-            });
-        });
-
-        // 파일 업로드 기능 초기화
-        qrScanner.initFileUpload();
-
-        // 스캔 재시작 버튼 추가
-        const restartButton = document.createElement('button');
-        restartButton.innerHTML = '스캔 재시작';
-        restartButton.style.cssText = `
-        margin-top: 1rem;
-        padding: 0.5rem 1rem;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 0.5rem;
-        cursor: pointer;
-    `;
-        restartButton.addEventListener('click', () => qrScanner.restart());
-        document.getElementById('scan-result').after(restartButton);
-    }
-
-    // 초기화 시작
-    initializeScanner();
 });
