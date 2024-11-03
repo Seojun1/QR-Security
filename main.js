@@ -1,15 +1,8 @@
 
 async function checkUrlSafety(url) {
     try {
-        // API 요청 전 파라미터 로깅
-        console.log('Checking URL:', url);
-        console.log('API Key:', protectKey.API_KEY);
-        console.log('API URL:', protectKey.API_URL);
-
         const encodedUrl = encodeURIComponent(url);
         const apiUrl = `${protectKey.API_URL}?key=${protectKey.API_KEY}&url=${encodedUrl}`;
-
-        console.log('Full API URL:', apiUrl);
 
         // CORS 이슈 해결을 위한 옵션 추가
         const response = await fetch(apiUrl, {
@@ -28,13 +21,10 @@ async function checkUrlSafety(url) {
 
         // 응답 로깅
         const responseText = await response.text();
-        console.log('API Response:', responseText);
 
         let data;
         try {
             data = JSON.parse(responseText);
-            console.log(data.message);
-            console.log(data.result);
         } catch (e) {
             console.error('JSON 파싱 오류:', e);
             throw new Error('Invalid JSON response');
@@ -83,9 +73,7 @@ const qrScanner = {
         // 스캐너 재시작
         try {
             await this.init();
-            console.log('스캐너가 다시 시작되었습니다.');
         } catch (error) {
-            console.error('스캐너 재시작 실패:', error);
             this.handleCameraError(error);
         }
     },
@@ -101,7 +89,6 @@ const qrScanner = {
         }
         this.lastResult = null;
         this.lastScanTime = 0;
-        console.log('스캐너 상태가 초기화되었습니다.');
     },
 
     async init() {
@@ -235,7 +222,6 @@ const qrScanner = {
 
         try {
             const safetyResult = await checkUrlSafety(decodedText);
-            console.log("safetyResult : ", safetyResult);
             let modalClass = '';
             let icon = '';
             let title = '';
@@ -341,7 +327,6 @@ const qrScanner = {
 
             this.scanning = true;
         } catch (error) {
-            console.log("검사 실패: ", error);
             modalContent.innerHTML = `
                 <div class="modal-warning">
                     <div class="modal-icon">⚠️</div>
@@ -602,12 +587,9 @@ function retryCamera() {
 document.addEventListener('DOMContentLoaded', () => {
     function initializeScanner() {
         if (typeof jsQR === 'undefined') {
-            console.log('jsQR 라이브러리 로드 중...');
             setTimeout(initializeScanner, 1000);
             return;
         }
-
-        console.log('jsQR 라이브러리 로드 완료');
 
         // QR 스캐너 초기화
         qrScanner.init();
