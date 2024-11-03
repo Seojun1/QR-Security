@@ -1,28 +1,24 @@
-
 async function checkUrlSafety(url) {
     try {
         const encodedUrl = encodeURIComponent(url);
         const apiUrl = `${protectKey.API_URL}?key=${protectKey.API_KEY}&url=${encodedUrl}`;
 
-        // CORS 이슈 해결을 위한 옵션 추가
         const response = await fetch(apiUrl, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             },
-            mode: 'cors'  // CORS 모드 명시
+            mode: 'cors'
         });
 
-        // 응답 상태 확인
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        // 응답 로깅
         const responseText = await response.text();
-
         let data;
+
         try {
             data = JSON.parse(responseText);
         } catch (e) {
@@ -30,28 +26,20 @@ async function checkUrlSafety(url) {
             throw new Error('Invalid JSON response');
         }
 
+        // API 응답 구조에 맞춰 결과 반환
         if (data.message === "SUCCESS" && data.result) {
+            // safe 값을 문자열로 통일
+            const safeValue = String(data.result.safe);
             return {
-                isSafe: data.result.safe === "1",
-                threatType: data.result.threat || "알 수 없음",
+                safe: safeValue,
+                threat: data.result.threat || null,
                 originalResponse: data
             };
         } else {
-            // 기본 안전성 검사로 폴백
-            return performBasicSafetyCheck(url);
+            throw new Error('API 응답 형식이 올바르지 않습니다');
         }
     } catch (error) {
         console.error('URL 검사 중 상세 오류:', error);
-
-        // 오류 원인에 따른 구체적인 메시지 반환
-        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-            throw new Error('API 서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.');
-        } else if (error.message.includes('HTTP error')) {
-            throw new Error('API 서버 응답 오류: ' + error.message);
-        } else if (error.message.includes('Invalid JSON')) {
-            throw new Error('API 응답 형식 오류: 올바르지 않은 데이터 형식');
-        }
-
         throw error;
     }
 }
@@ -315,6 +303,7 @@ const qrScanner = {
 
         try {
             const safetyResult = await checkUrlSafety(decodedText);
+            console.log(safetyResult);
             let modalClass = '';
             let icon = '';
             let title = '';
@@ -323,9 +312,10 @@ const qrScanner = {
             let resultClass = '';
             let actionButtons = '';
 
-            // API 응답의 safe 값이 "1"이면 안전, "0"이면 위험
-            console.log(safetyResult);
-            if (safetyResult.isSafe) {
+            // 문자열 "1" 또는 숫자 1 모두 처리
+            const isSafe = String(safetyResult.safe) === "1";
+
+            if (isSafe) {
                 modalClass = 'modal-safe';
                 resultClass = 'result-safe';
                 icon = '✓';
@@ -338,13 +328,13 @@ const qrScanner = {
                 ];
                 actionButtons = `
                     <div class="modal-actions">
-            <button onclick="window.open('${decodedText}', '_blank')" class="action-btn visit-btn">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                </svg>
-                사이트 방문하기
-            </button>
-        </div>
+                        <button onclick="window.open('${decodedText}', '_blank')" class="action-btn visit-btn">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                            사이트 방문하기
+                        </button>
+                    </div>
                 `;
             } else {
                 modalClass = 'modal-danger';
@@ -352,23 +342,12 @@ const qrScanner = {
                 icon = '⚠️';
                 title = '위험 감지!';
 
-                // 위험 유형에 따른 설명 추가
-                let threatDescription = '';
-                switch (safetyResult.threatType) {
-                    case 'MALWARE':
-                        threatDescription = '이 URL에서 멀웨어(악성 소프트웨어)가 발견되었습니다';
-                        break;
-                    case 'PHISHING':
-                        threatDescription = '이 URL은 피싱 사이트로 의심됩니다';
-                        break;
-                    case 'SUSPICIOUS':
-                        threatDescription = '이 URL은 의심스러운 활동이 감지되었습니다';
-                        break;
-                    default:
-                        threatDescription = `위험 유형: ${safetyResult.threatType}`;
-                }
+                // 위험 유형에 따른 설명
+                const threatType = safetyResult.threat;
+                description = threatType
+                    ? `이 URL에서 ${threatType} 위험이 감지되었습니다`
+                    : '이 URL은 안전하지 않은 것으로 확인되었습니다';
 
-                description = threatDescription;
                 tips = [
                     '⛔ 이 URL은 위험한 것으로 확인되었습니다',
                     '❌ 절대 접속하지 마세요',
