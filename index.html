@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR안심지킴이 - 코드포코리아</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">
+                QR안심지킴이
+            </a>
+            <div class="nav-links"><a href="#scanner" class="nav-link">스캔하기</a>
+                <a href="#features" class="nav-link">기능</a>
+                <a href="#faq" class="nav-link">FAQ</a>
+                <a href="#about" class="nav-link">소개</a>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-content">
+            <h1>더 안전한 QR코드 생활을<br>시작하세요</h1>
+            <p>QR코드 피싱으로부터 여러분을 보호하기 위한 똑똑한 보안 솔루션입니다</p>
+        </div>
+    </section>
+
+    <section id="scanner" class="scanner-section">
+        <h2 class="scanner-title">QR코드 안전 검사</h2>
+        <div class="scan-method-selector">
+            <button class="scan-method-btn active" data-method="camera">
+                <div class="method-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                    </svg>
+                </div>
+                <span>카메라로 스캔</span>
+            </button>
+            <button class="scan-method-btn" data-method="upload">
+                <div class="method-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                </div>
+                <span>파일 업로드</span>
+            </button>
+        </div>
+        <div class="scanner-container">
+            <div class="scanner-left">
+                <div id="qr-reader">
+                    <!-- 카메라 스캔 영역 -->
+                    <div id="scan-region" class="scan-region">
+                        <video id="qr-video"></video>
+                        <canvas id="qr-canvas" style="display: none;"></canvas>
+                        <div class="scan-frame">
+                            <div class="corner top-left"></div>
+                            <div class="corner top-right"></div>
+                            <div class="corner bottom-left"></div>
+                            <div class="corner bottom-right"></div>
+                            <div class="scanning-line"></div>
+                        </div>
+                        <div id="scan-result" class="scan-result">
+                            <!-- 스캔 결과 -->
+                        </div>
+                        <div class="scan-message">QR코드를 프레임 안에 위치시켜주세요</div>
+                    </div>
+                    <!-- 파일 업로드 -->
+                    <div id="file-upload-region" class="file-upload-region" style="display: none;">
+                        <input type="file" id="qr-input-file" accept="image/*" class="file-input">
+                        <div class="upload-content">
+                            <div id="upload-scan-result" class="scan-result">
+                                <!-- 업로드 결과 -->
+                            </div>
+                            <div class="upload-icon">
+                                <!-- 기존 업로드 아이콘 -->
+                            </div>
+                            <div class="upload-text">
+                                <span class="primary-text">QR코드 이미지를 선택하세요</span>
+                                <span class="secondary-text">또는 파일을 여기에 드래그하세요</span>
+                            </div>
+                            <button class="upload-btn">파일 선택</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="scanner-right">
+                <div class="scan-instructions">
+                    <h3>
+                        <span class="instruction-icon">📱</span>
+                        사용 방법
+                    </h3>
+                    <ul id="camera-instructions">
+                        <li><span class="step">1</span> 카메라를 허용해주세요</li>
+                        <li><span class="step">2</span> QR코드를 스캐너에 비춰주세요</li>
+                        <li><span class="step">3</span> 자동으로 안전성을 검사합니다</li>
+                        <li><span class="step">4</span> 결과를 확인하세요</li>
+                    </ul>
+                    <ul id="upload-instructions" style="display: none;">
+                        <li><span class="step">1</span> QR코드 이미지를 준비해주세요</li>
+                        <li><span class="step">2</span> 파일을 선택하거나 드래그하세요</li>
+                        <li><span class="step">3</span> 자동으로 안전성을 검사합니다</li>
+                        <li><span class="step">4</span> 결과를 확인하세요</li>
+                    </ul>
+                </div>
+                <div id="scan-result" class="result-container"></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="feature-card">
+            <div class="feature-icon">🔍</div>
+            <h3>실시간 안전 검사</h3>
+            <p>스캔한 QR코드의 안전성을 즉시 분석하고 결과를 알려드립니다.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <h3>지능형 위험 탐지</h3>
+            <p>구글 세이프 브라우징 API의 캐시를 통해 악성 URL과 피싱 위험을 자동으로 감지합니다.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">✨</div>
+            <h3>편리한 사용성</h3>
+            <p>누구나 쉽게 사용할 수 있는 직관적인 인터페이스를 제공합니다.</p>
+        </div>
+    </section>
+
+    <section id="faq" class="faq">
+        <div class="faq-container">
+            <div class="faq-header">
+                <h2>자주 묻는 질문</h2>
+                <p>QR안심지킴이 사용에 대한 궁금증을 해결해드립니다</p>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">큐싱(QR코드 피싱)이란 무엇인가요?</button>
+                <div class="faq-answer">
+                    <p>큐싱(Qishing)은 'QR코드'와 '피싱(Phishing)'의 합성어입니다. QR코드를 악용하여 사용자의 개인정보를 탈취하거나 금전적 피해를 입히는 새로운 형태의 사이버
+                        범죄입니다.</p>
+                    <ul style="margin-top: 1rem;">
+                        <li>정상 QR코드를 악성코드가 포함된 코드로 교체</li>
+                        <li>피해자를 악성 웹사이트로 유도</li>
+                        <li>개인정보 및 금융정보 탈취 시도</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">큐싱 수법에는 어떤 것들이 있나요?</button>
+                <div class="faq-answer">
+                    <p>대표적인  큐싱 수법은 다음과 같습니다:</p>
+                    <ul>
+                        <li>정상 QR코드 위에 악성 QR코드 스티커를 덧붙이는 수법</li>
+                        <li>가짜 결제 페이지로 연결되는 QR코드를 통한 금융정보 탈취</li>
+                        <li>악성 앱 설치를 유도하는 QR코드 배포</li>
+                        <li>정상적인 결제 QR코드를 해커의 계좌로 연결되는 QR코드로 교체</li>
+                        <li>소셜미디어에서 이벤트나 할인을 미끼로 악성 QR코드 유포</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">어떻게 보호받을 수 있나요?</button>
+                <div class="faq-answer">
+                    <p>QR안심지킴이는 다음과 같은 방식으로 사용자를 보호합니다:</p>
+                    <ul style="margin-top: 1rem;">
+                        <li>실시간 URL 안전성 검사</li>
+                        <li>캐시 값 기반의 API를 통한 악성코드 탐지</li>
+                        <li>즉각적인 위험 알림 제공</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">피해가 의심될 때는 어떻게 하나요?</button>
+                <div class="faq-answer">
+                    <p>다음과 같은 조치를 취해주세요:</p>
+                    <ul style="margin-top: 1rem;">
+                        <li>즉시 의심스러운 페이지를 종료하세요</li>
+                        <li>개인정보를 입력한 경우 관련 계정의 비밀번호를 변경하세요</li>
+                        <li>금전적 피해가 발생한 경우 카드사나 은행에 즉시 신고하세요</li>
+                        <li>비행기 모드로 변경해주세요</li>
+                        <li>피해구제신청을 접수해주세요</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">큐싱의 예방법을 알고싶어요!</button>
+                <div class="faq-answer">
+                    <p>다음과 같은 예방수칙을 기억해주세요:</p>
+                    <ul style="margin-top: 1rem;">
+                        <li>출처가 불분명한 웹사이트나 모르는 사람이 보낸 이메일에 포함된 QR코드는 스캔 금지</li>
+                        <li>공공장소 QR이 덧붙여진 스티커가 아닌지 확인 (공유자전거 등 이용할 때 가짜 QR코드인지 살펴보기)</li>
+                        <li>QR 스캔 시 연결되는 링크 주소(URL)가 올바른지 다시 한번 확인하기</li>
+                        <li>QR코드 접속 후 개인정보를 요구하거나 수상한 앱은 설치 금지</li>
+                        <li>QR안심지킴이 사용하기</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer id="about" class="footer">
+        <div class="footer-container">
+            <div class="footer-info">
+                <h2 class="footer-title">코드포코리아</h2>
+                <p class="footer-description">디지털 시민의식을 가진 시빅해커들과 함께 더 나은 사회를 만들어갑니다.</p>
+                <div class="team-members">
+                    <h3 class="team-title">기여한 사람들</h3>
+                    <div class="member-list">
+                        서준<br>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-join">
+                <h3 class="team-title">함께 만들어요</h3>
+                <p>코드포코리아 슬랙 워크스페이스에서 <strong>#p-큐싱</strong> 채널에 참여해주세요.</p>
+                <div class="footer-contact">
+                    <a href="https://codefor.kr" class="footer-link" target="_blank">codefor.kr</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <div class="modal-overlay" id="resultModal">
+        <div class="modal-container">
+            <button class="modal-close" onclick="closeModal()"></button>
+            <div class="modal-content">
+                <!-- JavaScript에서 동적으로 삽입 -->
+            </div>
+        </div>
+    </div>
+
+</body>
+<script src="main.js"></script>
+
+</html>
