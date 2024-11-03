@@ -76,6 +76,34 @@ const qrScanner = {
     lastResult: null, // 마지막 스캔 결과 저장
     lastScanTime: 0,  // 마지막 스캔 시간 저장
 
+    async restart() {
+        // 기존 상태 초기화
+        this.cleanup();
+
+        // 스캐너 재시작
+        try {
+            await this.init();
+            console.log('스캐너가 다시 시작되었습니다.');
+        } catch (error) {
+            console.error('스캐너 재시작 실패:', error);
+            this.handleCameraError(error);
+        }
+    },
+
+    // cleanup 메서드 업데이트
+    cleanup() {
+        this.scanning = false;
+        if (this.mediaStream) {
+            this.mediaStream.getTracks().forEach(track => track.stop());
+        }
+        if (this.video) {
+            this.video.srcObject = null;
+        }
+        this.lastResult = null;
+        this.lastScanTime = 0;
+        console.log('스캐너 상태가 초기화되었습니다.');
+    },
+
     async init() {
         try {
             this.video = document.getElementById('qr-video');
@@ -468,10 +496,15 @@ const qrScanner = {
 // 유틸리티 함수들
 function closeModal() {
     const modal = document.getElementById('resultModal');
-    modal.classList.remove('show');
-    // 모달을 닫아도 스캐너는 계속 작동
-    qrScanner.scanning = true;
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    // 모달을 닫아도 스캐너는 계속 작동하도록 설정
+    if (qrScanner) {
+        qrScanner.scanning = true;
+    }
 }
+
 
 function toggleDetails() {
     const detailsContent = document.querySelector('.details-content');
@@ -518,13 +551,51 @@ async function copyToClipboard(text) {
 
 
 function retryScanning() {
-    closeModal();
-    qrScanner.restart();
+    try {
+        closeModal();
+        if (qrScanner) {
+            qrScanner.restart().catch(error => {
+                console.error('재시도 중 오류 발생:', error);
+                handleScanError(error);
+            });
+        } else {
+            console.error('QR 스캐너가 초기화되지 않았습니다.');
+            handleScanError(new Error('스캐너 초기화 필요'));
+        }
+    } catch (error) {
+        console.error('재시도 처리 중 오류:', error);
+        handleScanError(error);
+    }
 }
 
+function handleScanError(error) {
+    const errorElement = document.getElementById('qr-reader');
+    if (errorElement) {
+        errorElement.innerHTML = `
+            <div style="padding: 2rem; text-align: center; color: var(--error);">
+                <p>스캐너 재시작 중 오류가 발생했습니다.</p>
+                <p>${error.message}</p>
+                <button onclick="retryCamera()" 
+                        style="margin-top: 1rem; padding: 0.5rem 1rem; 
+                               background: var(--primary); color: white; 
+                               border: none; border-radius: 0.5rem; 
+                               cursor: pointer;">
+                    다시 시도
+                </button>
+            </div>
+        `;
+    }
+}
+
+
 function retryCamera() {
-    qrScanner.cleanup();
-    qrScanner.init();
+    if (qrScanner) {
+        qrScanner.cleanup();
+        qrScanner.init().catch(error => {
+            console.error('카메라 재시작 실패:', error);
+            handleScanError(error);
+        });
+    }
 }
 
 // 이벤트 리스너들
