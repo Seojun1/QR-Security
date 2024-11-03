@@ -1,7 +1,13 @@
+window.ENV = {
+    API_KEY: '',
+    API_URL: ''
+};
+
+
 // URL 안전성 검사 함수
 async function checkUrlSafety(url) {
-    const API_KEY = window.ENV?.API_KEY || "";
-    const BASE_API_URL = window.ENV?.API_URL || "https://api.lrl.kr/v5/url/check";
+    const API_KEY = config.API_KEY;
+    const BASE_API_URL = config.API_URL;
     const encodedUrl = encodeURIComponent(url);
     const apiUrl = `${BASE_API_URL}?key=${API_KEY}&url=${encodedUrl}`;
 

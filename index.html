@@ -243,7 +243,14 @@
     </div>
 
 </body>
-
+<script>
+    // Netlify에서 환경변수 주입
+    window.ENV = {
+        API_KEY: '/* REACT_APP_API_KEY */',
+        API_URL: '/* REACT_APP_API_URL */'
+    };
+</script>
+<script src="env.js"></script>
 <script src="main.js"></script>
 
 </html>
