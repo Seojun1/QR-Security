@@ -1,7 +1,7 @@
 // URL 안전성 검사 함수
 async function checkUrlSafety(url) {
-    const API_KEY = window.ENV.API_KEY;
-    const BASE_API_URL = window.ENV.API_URL;
+    const API_KEY = protectKey.API_KEY;
+    const BASE_API_URL = protectKey.API_URL;
     const encodedUrl = encodeURIComponent(url);
     const apiUrl = `${BASE_API_URL}?key=${API_KEY}&url=${encodedUrl}`;
 
