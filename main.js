@@ -174,18 +174,47 @@ const qrScanner = {
         }
     },
     scan() {
-        if (!this.scanning || !this.video || !this.canvas || !this.ctx) return;
+        if (!this.scanning || !this.video || !this.canvas || !this.ctx) {
+            console.log('스캔 조건이 충족되지 않음:', {
+                scanning: this.scanning,
+                video: !!this.video,
+                canvas: !!this.canvas,
+                ctx: !!this.ctx
+            });
+            return;
+        }
 
         try {
+            // 비디오 상태 확인 및 로깅
+            console.log('비디오 상태:', {
+                readyState: this.video.readyState,
+                videoWidth: this.video.videoWidth,
+                videoHeight: this.video.videoHeight
+            });
+
             if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
+                // 캔버스 크기가 0이 아닌지 확인
+                if (this.canvas.width === 0 || this.canvas.height === 0) {
+                    this.canvas.width = this.video.videoWidth;
+                    this.canvas.height = this.video.videoHeight;
+                }
+
+                // 비디오 프레임을 캔버스에 그리기
                 this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+
+                // 이미지 데이터 가져오기
                 const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
                 try {
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    // QR 코드 스캔 시도
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "dontInvert"  // QR 코드 검색 최적화
+                    });
 
                     if (code) {
+                        console.log('QR 코드 발견:', code.data);
                         const currentTime = Date.now();
+
                         // 동일한 QR 코드는 3초 간격으로만 처리
                         if (this.lastResult !== code.data || currentTime - this.lastScanTime > 3000) {
                             this.lastResult = code.data;
@@ -194,17 +223,81 @@ const qrScanner = {
                         }
                     }
                 } catch (e) {
-                    console.error('QR 코드 스캔 오류:', e);
+                    console.error('QR 코드 스캔 처리 오류:', e);
                 }
             }
 
             // 스캔 계속 진행
-            requestAnimationFrame(() => this.scan());
-        } catch (error) {
-            console.error('스캔 중 오류:', error);
             if (this.scanning) {
                 requestAnimationFrame(() => this.scan());
             }
+        } catch (error) {
+            console.error('스캔 프로세스 오류:', error);
+            if (this.scanning) {
+                requestAnimationFrame(() => this.scan());
+            }
+        }
+    },
+
+    // init 메서드도 수정
+    async init() {
+        try {
+            this.video = document.getElementById('qr-video');
+            this.canvas = document.getElementById('qr-canvas');
+
+            if (!this.video || !this.canvas) {
+                throw new Error('필요한 DOM 요소를 찾을 수 없습니다.');
+            }
+
+            this.ctx = this.canvas.getContext('2d');
+
+            // 이전 스트림이 있다면 정리
+            if (this.mediaStream) {
+                this.mediaStream.getTracks().forEach(track => track.stop());
+            }
+
+            // 카메라 권한 요청 및 스트림 획득
+            this.mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            });
+
+            // 비디오 설정
+            this.video.srcObject = this.mediaStream;
+            this.video.setAttribute('playsinline', true);
+
+            // 비디오 로드 및 재생 대기
+            await new Promise((resolve, reject) => {
+                this.video.onloadedmetadata = () => {
+                    this.video.play()
+                        .then(() => {
+                            // 캔버스 크기 설정
+                            this.canvas.width = this.video.videoWidth;
+                            this.canvas.height = this.video.videoHeight;
+                            this.scanning = true;
+                            resolve();
+                        })
+                        .catch(reject);
+                };
+                this.video.onerror = reject;
+            });
+
+            // 스캔 시작
+            this.scanning = true;
+            this.scan();
+
+            console.log('카메라 초기화 완료', {
+                videoWidth: this.video.videoWidth,
+                videoHeight: this.video.videoHeight,
+                canvasWidth: this.canvas.width,
+                canvasHeight: this.canvas.height
+            });
+        } catch (error) {
+            console.error('카메라 초기화 오류:', error);
+            this.handleCameraError(error);
         }
     },
 
@@ -231,6 +324,7 @@ const qrScanner = {
             let actionButtons = '';
 
             // API 응답의 safe 값이 "1"이면 안전, "0"이면 위험
+            console.log(safetyResult);
             if (safetyResult.isSafe) {
                 modalClass = 'modal-safe';
                 resultClass = 'result-safe';
