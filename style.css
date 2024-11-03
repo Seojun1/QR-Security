@@ -1262,3 +1262,222 @@ body {
 .modal-danger .modal-icon {
     background: linear-gradient(135deg, var(--error), #F87171);
 }
+
+/* 버튼 공통 스타일 */
+.modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 24px 0;
+    padding: 0 20px;
+}
+
+.action-btn {
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* URL 복사 버튼 */
+.copy-btn {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    color: #495057;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+    background-color: #e9ecef;
+}
+
+/* 사이트 방문 버튼 */
+.visit-btn {
+    background-color: #51cf66;
+    border: none;
+    color: white;
+    box-shadow: 0 2px 4px rgba(81, 207, 102, 0.2);
+}
+
+.visit-btn:hover {
+    background-color: #40c057;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(81, 207, 102, 0.3);
+}
+
+/* 상세 결과 보기 버튼 */
+.details-toggle {
+    width: 100%;
+    padding: 12px 20px;
+    background-color: #f1f3f5;
+    border: none;
+    border-radius: 10px;
+    color: #495057;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.details-toggle:hover {
+    background-color: #e9ecef;
+}
+
+/* 버튼 내 아이콘 스타일 */
+.btn-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* URL 표시 영역 컨테이너 */
+.modal-url {
+    display: flex;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 10px;
+    margin: 16px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+/* URL 텍스트 영역 */
+.url-text {
+    flex: 1;
+    min-width: 0; /* 텍스트 오버플로우 방지 */
+    padding-right: 8px;
+    font-size: 14px;
+    color: #495057;
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* URL이 길 경우 호버 시 자동 스크롤 */
+.url-text:hover {
+    animation: scrollText 10s linear infinite;
+}
+
+/* 복사 버튼 */
+.copy-btn {
+    background-color: transparent;
+    border: none;
+    padding: 6px;
+    border-radius: 6px;
+    color: #868e96;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    min-width: 32px;
+    overflow: hidden;
+}
+
+/* 복사 버튼 호버 효과 */
+.copy-btn:hover {
+    background-color: #e9ecef;
+    color: #495057;
+    width: auto;
+}
+
+/* 복사 버튼 아이콘 */
+.copy-btn .btn-icon {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s ease;
+}
+
+/* 복사 버튼 텍스트 */
+.copy-btn .btn-text {
+    max-width: 0;
+    opacity: 0;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+/* 복사 버튼 호버 시 텍스트 표시 */
+.copy-btn:hover .btn-text {
+    max-width: 100px;
+    opacity: 1;
+    margin-left: 4px;
+}
+
+/* 복사 성공 시 애니메이션 */
+@keyframes copySuccess {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.copy-success {
+    animation: copySuccess 0.3s ease;
+}
+
+/* URL 텍스트 스크롤 애니메이션 */
+@keyframes scrollText {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(calc(-100% + 250px)); }
+    50% { transform: translateX(0); }
+    75% { transform: translateX(calc(-100% + 250px)); }
+    100% { transform: translateX(0); }
+}
+
+/* 복사 완료 메시지 토스트 */
+.copy-toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    background-color: #51cf66;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.copy-toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* 위험한 URL일 경우 */
+.result-danger .visit-btn {
+    background-color: #ff6b6b;
+    box-shadow: 0 2px 4px rgba(255, 107, 107, 0.2);
+}
+
+.result-danger .visit-btn:hover {
+    background-color: #fa5252;
+    box-shadow: 0 4px 6px rgba(255, 107, 107, 0.3);
+}

@@ -1,17 +1,44 @@
-// URL 안전성 검사 함수
-async function checkUrlSafety(url) {
-    const API_KEY = protectKey.API_KEY;
-    const BASE_API_URL = protectKey.API_URL;
-    const encodedUrl = encodeURIComponent(url);
-    const apiUrl = `${BASE_API_URL}?key=${API_KEY}&url=${encodedUrl}`;
 
+async function checkUrlSafety(url) {
     try {
-        const response = await fetch(apiUrl);
+        // API 요청 전 파라미터 로깅
+        console.log('Checking URL:', url);
+        console.log('API Key:', protectKey.API_KEY);
+        console.log('API URL:', protectKey.API_URL);
+
+        const encodedUrl = encodeURIComponent(url);
+        const apiUrl = `${protectKey.API_URL}?key=${protectKey.API_KEY}&url=${encodedUrl}`;
+
+        console.log('Full API URL:', apiUrl);
+
+        // CORS 이슈 해결을 위한 옵션 추가
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            mode: 'cors'  // CORS 모드 명시
+        });
+
+        // 응답 상태 확인
         if (!response.ok) {
-            throw new Error('API 요청 실패');
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = await response.json();
+        // 응답 로깅
+        const responseText = await response.text();
+        console.log('API Response:', responseText);
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+            console.log(data.message);
+            console.log(data.result);
+        } catch (e) {
+            console.error('JSON 파싱 오류:', e);
+            throw new Error('Invalid JSON response');
+        }
 
         if (data.message === "SUCCESS" && data.result) {
             return {
@@ -20,10 +47,21 @@ async function checkUrlSafety(url) {
                 originalResponse: data
             };
         } else {
-            throw new Error('잘못된 API 응답 형식');
+            // 기본 안전성 검사로 폴백
+            return performBasicSafetyCheck(url);
         }
     } catch (error) {
-        console.error('URL 검사 중 오류:', error);
+        console.error('URL 검사 중 상세 오류:', error);
+
+        // 오류 원인에 따른 구체적인 메시지 반환
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            throw new Error('API 서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.');
+        } else if (error.message.includes('HTTP error')) {
+            throw new Error('API 서버 응답 오류: ' + error.message);
+        } else if (error.message.includes('Invalid JSON')) {
+            throw new Error('API 응답 형식 오류: 올바르지 않은 데이터 형식');
+        }
+
         throw error;
     }
 }
@@ -159,7 +197,6 @@ const qrScanner = {
         const modal = document.getElementById('resultModal');
         const modalContent = modal.querySelector('.modal-content');
 
-        // 로딩 상태 표시
         modalContent.innerHTML = `
             <div class="modal-loading">
                 <div class="loading-spinner"></div>
@@ -170,6 +207,7 @@ const qrScanner = {
 
         try {
             const safetyResult = await checkUrlSafety(decodedText);
+            console.log("safetyResult : ", safetyResult);
             let modalClass = '';
             let icon = '';
             let title = '';
@@ -178,36 +216,60 @@ const qrScanner = {
             let resultClass = '';
             let actionButtons = '';
 
+            // API 응답의 safe 값이 "1"이면 안전, "0"이면 위험
             if (safetyResult.isSafe) {
                 modalClass = 'modal-safe';
                 resultClass = 'result-safe';
                 icon = '✓';
                 title = '안전한 URL';
-                description = '안전한 것으로 확인된 URL입니다';
+                description = '이 URL은 안전한 것으로 확인되었습니다';
                 tips = [
-                    '안전성이 확인되었습니다',
-                    '일반적인 주의사항을 지켜주세요',
-                    '민감한 정보 입력 시에는 항상 주의하세요'
+                    '검사 결과 위험 요소가 발견되지 않았습니다',
+                    '일반적인 웹 브라우징 주의사항을 지켜주세요',
+                    '개인정보 입력 시에는 항상 주의하세요'
                 ];
                 actionButtons = `
-                    <button onclick="window.open('${decodedText}', '_blank')" class="action-btn visit-btn">
-                        방문하기
-                    </button>
+                    <div class="modal-actions">
+            <button onclick="window.open('${decodedText}', '_blank')" class="action-btn visit-btn">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+                사이트 방문하기
+            </button>
+        </div>
                 `;
             } else {
                 modalClass = 'modal-danger';
                 resultClass = 'result-danger';
                 icon = '⚠️';
-                title = '위험 감지';
-                description = `위험 유형: ${safetyResult.threatType}`;
+                title = '위험 감지!';
+
+                // 위험 유형에 따른 설명 추가
+                let threatDescription = '';
+                switch (safetyResult.threatType) {
+                    case 'MALWARE':
+                        threatDescription = '이 URL에서 멀웨어(악성 소프트웨어)가 발견되었습니다';
+                        break;
+                    case 'PHISHING':
+                        threatDescription = '이 URL은 피싱 사이트로 의심됩니다';
+                        break;
+                    case 'SUSPICIOUS':
+                        threatDescription = '이 URL은 의심스러운 활동이 감지되었습니다';
+                        break;
+                    default:
+                        threatDescription = `위험 유형: ${safetyResult.threatType}`;
+                }
+
+                description = threatDescription;
                 tips = [
-                    '이 URL은 위험한 것으로 확인되었습니다',
-                    '접속하지 않는 것을 강력히 권장합니다',
-                    '개인정보를 절대 입력하지 마세요'
+                    '⛔ 이 URL은 위험한 것으로 확인되었습니다',
+                    '❌ 절대 접속하지 마세요',
+                    '🚫 개인정보나 금융정보를 입력하지 마세요',
+                    '📢 다른 사람에게도 위험성을 알려주세요'
                 ];
                 actionButtons = `
                     <button onclick="closeModal()" class="action-btn close-btn">
-                        닫기
+                        창 닫기
                     </button>
                 `;
             }
@@ -218,13 +280,16 @@ const qrScanner = {
                     <h2 class="modal-title">${title}</h2>
                     <p class="modal-description">${description}</p>
                     <div class="modal-url ${resultClass}">
-                        <span class="url-text">${decodedText}</span>
-                        <button onclick="copyToClipboard('${decodedText}')" class="copy-btn">
-                            복사
-                        </button>
-                    </div>
+            <span class="url-text" title="${decodedText}">${decodedText}</span>
+            <button onclick="copyToClipboard('${decodedText}')" class="copy-btn">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                </svg>
+                <span class="btn-text">복사</span>
+            </button>
+        </div>
                     <div class="modal-tips">
-                        <h4>💡 안전 팁</h4>
+                        <h4>💡 안전 알림</h4>
                         <ul>
                             ${tips.map(tip => `<li>${tip}</li>`).join('')}
                         </ul>
@@ -234,8 +299,11 @@ const qrScanner = {
                     </div>
                     <div class="modal-details">
                         <button onclick="toggleDetails()" class="details-toggle">
-                            상세 검사 결과 보기
-                        </button>
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            상세 검사 결과 보기
+        </button>
                         <div class="details-content" style="display: none;">
                             <pre>${JSON.stringify(safetyResult.originalResponse, null, 2)}</pre>
                         </div>
@@ -243,35 +311,35 @@ const qrScanner = {
                 </div>
             `;
 
-            // 스캐닝 계속 유지
             this.scanning = true;
         } catch (error) {
+            console.log("검사 실패: ", error);
             modalContent.innerHTML = `
                 <div class="modal-warning">
-                    <div class="modal-icon">!</div>
+                    <div class="modal-icon">⚠️</div>
                     <h2 class="modal-title">검사 실패</h2>
                     <p class="modal-description">URL 안전성 검사 중 오류가 발생했습니다</p>
                     <div class="modal-url">${decodedText}</div>
                     <div class="modal-tips">
-                        <h4>💡 권장 사항</h4>
+                        <h4>💡 권장 조치사항</h4>
                         <ul>
-                            <li>인터넷 연결을 확인해주세요</li>
+                            <li>네트워크 연결 상태를 확인해주세요</li>
                             <li>잠시 후 다시 시도해주세요</li>
-                            <li>문제가 지속되면 관리자에게 문의하세요</li>
+                            <li>문제가 계속되면 관리자에게 문의하세요</li>
                         </ul>
                     </div>
                     <div class="modal-actions">
                         <button onclick="retryScanning()" class="action-btn retry-btn">
-                            다시 시도
+                            다시 검사하기
                         </button>
                     </div>
                 </div>
             `;
 
-            // 에러 발생해도 스캐닝 유지
             this.scanning = true;
         }
     },
+
     async processQRFromFile(file) {
         return new Promise((resolve, reject) => {
             if (typeof jsQR === 'undefined') {
@@ -421,12 +489,33 @@ function toggleDetails() {
 async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
-        alert('URL이 클립보드에 복사되었습니다.');
+
+        // 복사 버튼에 성공 애니메이션 추가
+        const copyBtn = document.querySelector('.copy-btn');
+        copyBtn.classList.add('copy-success');
+
+        // 토스트 메시지 표시
+        const toast = document.createElement('div');
+        toast.className = 'copy-toast';
+        toast.textContent = 'URL이 클립보드에 복사되었습니다';
+        document.body.appendChild(toast);
+
+        // 애니메이션 타이밍
+        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+
+        // 버튼 애니메이션 초기화
+        setTimeout(() => copyBtn.classList.remove('copy-success'), 300);
+
     } catch (err) {
         console.error('클립보드 복사 실패:', err);
         alert('클립보드 복사에 실패했습니다.');
     }
 }
+
 
 function retryScanning() {
     closeModal();
